@@ -1,0 +1,25 @@
+WELCOME = (
+    "Salom! Men sizning oddiy so‘rovingizni boshqa AI uchun aniq, "
+    "copy qilishga qulay promptga aylantiraman.\n\n"
+    "Vazifa yoki loyiha g‘oyangizni yozing."
+)
+CHOOSE_TARGET = "Prompt qaysi AI uchun tayyorlanishini tanlang:"
+TARGET_SELECTED = "Tanlandi: {target}. Endi vazifa yoki loyiha g‘oyangizni yozing."
+HELP = (
+    "Prompter sizning g‘oyangizdan boshqa AI uchun aniq prompt tayyorlaydi.\n\n"
+    "🤖 AI o‘zi taxmin qilsin — savolsiz, faqat xavfsiz taxminlar bilan.\n"
+    "🔍 Aniqlashtirib tayyorlay — kerak bo‘lsa ketma-ket bitta savol beradi.\n"
+    "📎 /reference — joriy prompt uchun matnli reference qo‘shadi.\n\n"
+    "Buyruqlar: /start, /help, /new_prompt, /reference"
+)
+REFERENCE_PROMPT = "Joriy prompt uchun matnli reference yuboring. U faqat shu promptda ishlatiladi."
+REFERENCE_SAVED = "Reference qo‘shildi. Davom etishingiz mumkin."
+REFERENCE_UNSUPPORTED = "Hozircha faqat matnli reference qo‘llanadi. Rasm, video va hujjatlar keyingi versiyaga qoldirilgan."
+TASKLESS = "Salom! Qanday vazifa yoki loyiha uchun prompt tayyorlaymiz?"
+CHOOSE_MODE = "Qanday tayyorlaymiz?"
+CLARIFICATION_PREFIX = "Aniqlashtirish uchun bitta muhim savol:\n\n"
+PROCESSING = "Prompt tayyorlayapman…"
+READY = "✅ Tayyor prompt. Uni code block ichidan qulay nusxalashingiz mumkin."
+NEW_REQUEST = "Yangi vazifangizni yuboring."
+UNEXPECTED = "Kutilmagan xatolik yuz berdi. Iltimos, yana urinib ko‘ring."
+TEXT_ONLY = "Iltimos, vazifani matn ko‘rinishida yuboring."
