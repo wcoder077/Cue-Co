@@ -1,7 +1,7 @@
 
 
 from .instructions import DECISION_ENGINE_INSTRUCTION
-from utils.parser import extract_json
+from utils.parser import as_list, extract_json
 
 
 class DecisionEngine:
@@ -33,5 +33,5 @@ class DecisionEngine:
 
         return {
             "decision": decision,
-            "questions": data.get("questions", [])
+            "questions": as_list(data.get("questions"))
         }

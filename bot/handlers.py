@@ -3,7 +3,7 @@ import html
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -42,13 +42,32 @@ async def _show_target_selection(message: Message, state: FSMContext, welcome: b
     await message.answer(messages.CHOOSE_TARGET, reply_markup=target_ai_keyboard())
 
 
+def _split_escaped(text: str, limit: int = 4000) -> list[str]:
+    """Split text so every HTML-escaped chunk fits Telegram's 4096-char limit."""
+    chunks, current, size = [], [], 0
+    for line in text.splitlines(keepends=True):
+        for piece in (line[i:i + 500] for i in range(0, len(line), 500)):
+            escaped = html.escape(piece)
+            if current and size + len(escaped) > limit:
+                chunks.append("".join(current))
+                current, size = [], 0
+            current.append(escaped)
+            size += len(escaped)
+    if current:
+        chunks.append("".join(current))
+    return chunks
+
+
 async def _send_final(message: Message, prompt: str) -> None:
     await message.answer(messages.READY)
-    # Telegram messages max at 4096 chars. Keep each escaped code block safe.
-    for start in range(0, len(prompt), 3600):
-        chunk = html.escape(prompt[start:start + 3600])
+    for chunk in _split_escaped(prompt.strip()):
         await message.answer(f"<pre><code>{chunk}</code></pre>")
-    await message.answer("", reply_markup=new_prompt_keyboard())
+    await message.answer(messages.WHAT_NEXT, reply_markup=new_prompt_keyboard())
+
+
+async def _send_question(message: Message, question: str) -> None:
+    # AI text may contain <, > or &; the bot uses HTML parse mode.
+    await message.answer(messages.CLARIFICATION_PREFIX + html.escape(question))
 
 
 @router.message(CommandStart())
@@ -66,7 +85,8 @@ async def reference_command(message: Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state is None:
         current_state = PromptStates.waiting_for_target.state
-    await state.update_data(reference_return_state=current_state)
+    if current_state != PromptStates.waiting_for_reference.state:
+        await state.update_data(reference_return_state=current_state)
     await state.set_state(PromptStates.waiting_for_reference)
     await message.answer(messages.REFERENCE_PROMPT)
 
@@ -95,7 +115,9 @@ async def choose_target(callback: CallbackQuery, state: FSMContext) -> None:
     if target is None:
         await callback.answer("Bu AI tanlovi topilmadi.", show_alert=True)
         return
-    await state.update_data(target_ai=target, references=[])
+    # References added via /reference before choosing a target are kept;
+    # _show_target_selection already clears them for a new prompt.
+    await state.update_data(target_ai=target)
     await state.set_state(PromptStates.waiting_for_request)
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
@@ -119,6 +141,11 @@ async def receive_reference(message: Message, state: FSMContext) -> None:
     return_state = data.get("reference_return_state", PromptStates.waiting_for_request.state)
     await state.set_state(return_state)
     await message.answer(messages.REFERENCE_SAVED)
+    # Re-show the buttons the user still needs to press.
+    if return_state == PromptStates.waiting_for_target.state:
+        await message.answer(messages.CHOOSE_TARGET, reply_markup=target_ai_keyboard())
+    elif return_state == PromptStates.waiting_for_mode.state:
+        await message.answer(messages.CHOOSE_MODE, reply_markup=mode_keyboard())
 
 
 @router.message(PromptStates.waiting_for_reference)
@@ -132,6 +159,7 @@ async def receive_request(message: Message, state: FSMContext, architect: Prompt
     if is_taskless(text):
         await message.answer(messages.TASKLESS)
         return
+    await message.answer(messages.ANALYZING)
     try:
         data = await state.get_data()
         conversation, _ = await asyncio.to_thread(
@@ -152,7 +180,7 @@ async def request_must_be_text(message: Message) -> None:
 
 @router.message(PromptStates.waiting_for_mode)
 async def mode_must_be_button(message: Message) -> None:
-    await message.answer("Iltimos, yuqoridagi tugmalardan birini tanlang.", reply_markup=mode_keyboard())
+    await message.answer(messages.PRESS_BUTTON, reply_markup=mode_keyboard())
 
 
 @router.callback_query(PromptStates.waiting_for_mode, F.data.in_({"mode:ASSUME", "mode:CLARIFY"}))
@@ -167,32 +195,34 @@ async def choose_mode(callback: CallbackQuery, state: FSMContext, architect: Pro
         await _save_conversation(state, conversation)
         if result["status"] == "NEED_CLARIFICATION":
             await state.set_state(PromptStates.clarifying)
-            await callback.message.answer(messages.CLARIFICATION_PREFIX + result["questions"][0])
+            await _send_question(callback.message, result["questions"][0])
         else:
             await state.set_state(PromptStates.completed)
             await _send_final(callback.message, result["prompt"])
-    except (KeyError, ValueError):
+    except KeyError:
         await state.set_state(PromptStates.waiting_for_request)
-        await callback.message.answer("Suhbat muddati tugagan. Iltimos, vazifani yana yuboring.")
+        await callback.message.answer(messages.SESSION_EXPIRED)
     except Exception:
         logger.exception("Could not apply mode for user %s", callback.from_user.id)
-        await callback.message.answer(messages.UNEXPECTED)
+        # State is unchanged, so the user can simply press the button again.
+        await callback.message.answer(messages.UNEXPECTED, reply_markup=mode_keyboard())
 
 
 @router.message(PromptStates.clarifying, F.text)
 async def receive_answer(message: Message, state: FSMContext, architect: PromptArchitect) -> None:
+    await message.answer(messages.PROCESSING)
     try:
         conversation = await _load_conversation(state)
         result = await asyncio.to_thread(architect.answer, conversation, message.text)
         await _save_conversation(state, conversation)
         if result["status"] == "NEED_CLARIFICATION":
-            await message.answer(messages.CLARIFICATION_PREFIX + result["questions"][0])
+            await _send_question(message, result["questions"][0])
         else:
             await state.set_state(PromptStates.completed)
             await _send_final(message, result["prompt"])
-    except (KeyError, ValueError):
+    except KeyError:
         await state.set_state(PromptStates.waiting_for_request)
-        await message.answer("Suhbat muddati tugagan. Iltimos, vazifani yana yuboring.")
+        await message.answer(messages.SESSION_EXPIRED)
     except Exception:
         logger.exception("Could not process clarification answer for user %s", message.from_user.id)
         await message.answer(messages.UNEXPECTED)
@@ -205,4 +235,21 @@ async def clarification_must_be_text(message: Message) -> None:
 
 @router.message(PromptStates.completed, F.text)
 async def completed_message(message: Message) -> None:
-    await message.answer("Yangi prompt uchun 🔄 New prompt tugmasini bosing.", reply_markup=new_prompt_keyboard())
+    await message.answer(messages.WHAT_NEXT, reply_markup=new_prompt_keyboard())
+
+
+@router.message(PromptStates.waiting_for_target)
+async def target_must_be_button(message: Message) -> None:
+    await message.answer(messages.CHOOSE_TARGET, reply_markup=target_ai_keyboard())
+
+
+@router.message(StateFilter(None))
+async def no_state_message(message: Message, state: FSMContext) -> None:
+    # E.g. the bot restarted (MemoryStorage is lost) or the user never sent /start.
+    await _show_target_selection(message, state)
+
+
+@router.callback_query()
+async def stale_callback(callback: CallbackQuery) -> None:
+    # Buttons from an old message; answer so the client stops the spinner.
+    await callback.answer(messages.STALE_BUTTON, show_alert=True)

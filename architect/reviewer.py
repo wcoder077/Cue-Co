@@ -2,7 +2,7 @@ from .instructions import (
     REVIEWER_INSTRUCTION,
     IMPROVEMENT_INSTRUCTION
 )
-from utils.parser import extract_json
+from utils.parser import as_list, extract_json
 from .schemas import ReviewResult
 
 
@@ -39,7 +39,7 @@ GENERATED PROMPT:
 
         return ReviewResult(
             status=data.get("status", "READY"),
-            issues=data.get("issues", [])
+            issues=as_list(data.get("issues"))
         )
 
     def improve(self, prompt: str, review: ReviewResult) -> str:

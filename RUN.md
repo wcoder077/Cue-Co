@@ -6,19 +6,27 @@ Prompter oddiy foydalanuvchi so‘rovini bajarib bermaydi. U boshqa AI uchun ani
 
 Python 3.11 yoki yangiroq ishlating.
 
-```powershell
-cd C:\Users\toshtem1rov_b\.codex\.chatgpt-projects\g-p-6a86b809207481919050db7159d03d9a\prompter-telegram
+```bash
+cd prompter-bot
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+source .venv/bin/activate          # Windows: .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-Copy-Item .env.example .env
+cp .env.example .env               # Windows: Copy-Item .env.example .env
 ```
 
-`.env` ichiga `GEMINI_API_KEY` va BotFather’dan olingan `TELEGRAM_BOT_TOKEN` ni yozing. Mavjud Gemini kalitingizni saqlab qolishingiz mumkin. `GEMINI_MODEL` ixtiyoriy.
+`.env` ichiga `GEMINI_API_KEY` va BotFather’dan olingan `TELEGRAM_BOT_TOKEN` ni yozing.
+
+### Gemini modellari
+
+`GEMINI_MODELS` — vergul bilan ajratilgan modellar ro‘yxati, standart qiymat:
+`gemini-3.5-flash-lite,gemini-2.5-flash-lite`. Birinchi model xato bersa (404, 429, 5xx
+yoki bo‘sh javob), bot avtomatik keyingisiga o‘tadi. 404 bergan model qayta ishga
+tushirilgunga qadar o‘tkazib yuboriladi. Eski `GEMINI_MODEL` o‘zgaruvchisi ham ishlaydi —
+u faqat birinchi (asosiy) modelni belgilaydi.
 
 ## Ishga tushirish
 
-```powershell
+```bash
 python main.py
 ```
 
@@ -29,13 +37,13 @@ Yangi suhbat uchun `🔄 New prompt`, `🏠 Home`, `/new` yoki `/new_prompt`dan 
 
 API kalitsiz, sun’iy AI javoblari bilan asosiy oqimlar tekshiriladi:
 
-```powershell
+```bash
 python -m unittest discover -s tests -v
 ```
 
 ## Arxitektura
 
-- `ai/GeminiEngine` — yagona faol provider; Groq oqimdan olib tashlangan.
+- `ai/GeminiEngine` — yagona faol provider; bir nechta Gemini modeli orasida avtomatik fallback qiladi.
 - `architect/` — mavjud understander, decision engine, builder va reviewer logikasi.
 - `bot/` — aiogram router, xabarlar, klaviaturalar hamda FSM holatlari.
 - Target AI — final prompt manzili; u Gemini providerini almashtirmaydi.

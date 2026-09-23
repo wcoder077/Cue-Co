@@ -1,11 +1,16 @@
 """The existing prompt-architect pipeline, made stateless for Telegram FSM use."""
 
+import logging
+
 from .builder import Builder
 from .desicion_engine import DecisionEngine
 from .questioner import Questioner
 from .reviewer import Reviewer
+from .schemas import ReviewResult
 from .state import ConversationState
 from .understander import Understander
+
+logger = logging.getLogger(__name__)
 
 
 class PromptArchitect:
@@ -75,9 +80,14 @@ class PromptArchitect:
 
     def _build_final(self, state: ConversationState, context: str) -> dict:
         prompt = self.builder.build(state.original_request, state.intent, context)
-        review = self.reviewer.review(prompt, state.intent)
-        if review.status == "NEEDS_IMPROVEMENT":
-            prompt = self.reviewer.improve(prompt, review)
+        # Review is a polish step: a malformed review must not lose a good prompt.
+        try:
+            review = self.reviewer.review(prompt, state.intent)
+            if review.status == "NEEDS_IMPROVEMENT":
+                prompt = self.reviewer.improve(prompt, review).strip() or prompt
+        except Exception:
+            logger.warning("Prompt review failed; using the unreviewed prompt", exc_info=True)
+            review = ReviewResult(status="SKIPPED")
         state.stage = "COMPLETED"
         state.current_questions = []
         return {"status": "FINAL_PROMPT", "intent": state.intent, "prompt": prompt, "review": review}

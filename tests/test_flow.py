@@ -1,9 +1,17 @@
 import json
+import os
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
+from google.genai import errors
+
+from ai import gemini
 from architect import PromptArchitect
 from architect.state import ConversationState
+from bot.handlers import _split_escaped
 from bot.task_detection import is_taskless
+from utils.parser import extract_json
 
 
 class FakeAI:
@@ -81,6 +89,77 @@ class PromptFlowTests(unittest.TestCase):
         result = self.architect.answer(state, "yakuniy ma’lumot")
         self.assertEqual(result["status"], "FINAL_PROMPT")
         self.assertEqual(len(state.qa_history), 5)
+
+
+    def test_broken_review_keeps_built_prompt(self):
+        original = self.ai.generate
+
+        def generate(instruction, context):
+            if "Prompt Review Engine" in instruction:
+                return "not json"
+            return original(instruction, context)
+
+        self.ai.generate = generate
+        state, _ = self.architect.begin("Telegram bot kerak")
+        result = self.architect.choose_mode(state, "ASSUME")
+        self.assertEqual(result["status"], "FINAL_PROMPT")
+        self.assertIn("focused prompt", result["prompt"])
+
+
+class ParserTests(unittest.TestCase):
+    def test_fenced_json_and_non_object(self):
+        self.assertEqual(extract_json('```json\n{"a": 1}\n```'), {"a": 1})
+        with self.assertRaises(ValueError):
+            extract_json("[1, 2]")
+
+
+class TelegramChunkTests(unittest.TestCase):
+    def test_escaped_chunks_fit_telegram_limit(self):
+        chunks = _split_escaped("<&>" * 3000 + "\nline\n" * 500)
+        self.assertTrue(all(len(c) <= 4000 for c in chunks))
+        self.assertGreater(len(chunks), 1)
+
+
+class GeminiFallbackTests(unittest.TestCase):
+    def make_engine(self, env, responses):
+        calls = []
+
+        def generate_content(model, contents, config):
+            calls.append(model)
+            outcome = responses[model]
+            if isinstance(outcome, Exception):
+                raise outcome
+            return SimpleNamespace(text=outcome)
+
+        client = SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "x", **env}, clear=True), \
+                mock.patch.object(gemini.genai, "Client", return_value=client):
+            engine = gemini.GeminiEngine()
+        return engine, calls
+
+    def test_default_models(self):
+        engine, _ = self.make_engine({}, {})
+        self.assertEqual(engine.models, ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"])
+
+    def test_legacy_gemini_model_sets_primary(self):
+        engine, _ = self.make_engine({"GEMINI_MODEL": "gemini-2.5-flash-lite"}, {})
+        self.assertEqual(engine.models, ["gemini-2.5-flash-lite", "gemini-3.5-flash-lite"])
+
+    def test_falls_back_and_skips_missing_model(self):
+        not_found = errors.ClientError(404, {"error": {"code": 404, "message": "gone"}})
+        engine, calls = self.make_engine({}, {
+            "gemini-3.5-flash-lite": not_found,
+            "gemini-2.5-flash-lite": "ok",
+        })
+        self.assertEqual(engine.generate("i", "u"), "ok")
+        self.assertEqual(engine.generate("i", "u"), "ok")
+        self.assertEqual(calls, ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash-lite"])
+
+    def test_all_models_failing_raises(self):
+        busy = errors.ServerError(503, {"error": {"code": 503, "message": "busy"}})
+        engine, _ = self.make_engine({}, {"gemini-3.5-flash-lite": busy, "gemini-2.5-flash-lite": ""})
+        with self.assertRaises(RuntimeError):
+            engine.generate("i", "u")
 
 
 if __name__ == "__main__":

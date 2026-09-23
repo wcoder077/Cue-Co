@@ -1,6 +1,6 @@
 from .instructions import UNDERSTANDER_INSTRUCTION
 from .schemas import UserIntent
-from utils.parser import extract_json
+from utils.parser import as_list, extract_json
 
 
 class Understander:
@@ -28,23 +28,16 @@ class Understander:
             expected_output=data.get(
                 "expected_output"
             ),
-            requirements=data.get(
-                "requirements",
-                []
-            ),
-            preferences=data.get(
-                "preferences",
-                []
-            ),
-            constraints=data.get(
-                "constraints",
-                []
-            ),
-            missing_information=data.get(
-                "missing_information",
-                []
-            ),
-            confidence=float(
-                data.get("confidence", 0)
-            )
+            requirements=as_list(data.get("requirements")),
+            preferences=as_list(data.get("preferences")),
+            constraints=as_list(data.get("constraints")),
+            missing_information=as_list(data.get("missing_information")),
+            confidence=_to_float(data.get("confidence"))
         )
+
+
+def _to_float(value) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
