@@ -4,6 +4,7 @@ import logging
 
 from .builder import Builder
 from .desicion_engine import DecisionEngine
+from .instructions import REFERENCE_ANALYZER_INSTRUCTION
 from .questioner import Questioner
 from .reviewer import Reviewer
 from .schemas import ReviewResult
@@ -22,6 +23,7 @@ class PromptArchitect:
         self.builder = Builder(ai)
         self.reviewer = Reviewer(ai)
         self.decision_engine = DecisionEngine(ai)
+        self.ai = ai
         self.max_clarification_questions = 5
 
     def begin(
@@ -65,6 +67,18 @@ class PromptArchitect:
         context = state.build_conversation_context()
         state.intent = self.understander.analyze(context)
         return self._continue_clarification(state, context)
+
+    def finish(self, state: ConversationState) -> dict:
+        """Build the final prompt now: skips remaining questions or regenerates."""
+        if state.stage not in {"MODE_SELECTION", "CLARIFICATION", "COMPLETED"}:
+            raise ValueError("Prompt hali tayyorlanishga tayyor emas.")
+        if state.mode is None:
+            state.set_mode("ASSUME")
+        return self._build_final(state, state.build_conversation_context())
+
+    def analyze_reference(self, data: bytes, mime_type: str, note: str = "") -> str:
+        """Turn an image/PDF into text so the rest of the pipeline stays text-only."""
+        return self.ai.describe(REFERENCE_ANALYZER_INSTRUCTION, data, mime_type, note).strip()
 
     def _continue_clarification(self, state: ConversationState, context: str) -> dict:
         if len(state.qa_history) >= self.max_clarification_questions:

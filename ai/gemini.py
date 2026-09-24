@@ -44,7 +44,22 @@ class GeminiEngine(AIEngine):
         instruction: str,
         user_message: str
     ) -> str:
+        return self._generate(instruction, user_message)
 
+    def describe(
+        self,
+        instruction: str,
+        data: bytes,
+        mime_type: str,
+        note: str = ""
+    ) -> str:
+        contents = [
+            types.Part.from_bytes(data=data, mime_type=mime_type),
+            f"User note: {note}" if note else "No user note.",
+        ]
+        return self._generate(instruction, contents)
+
+    def _generate(self, instruction: str, contents) -> str:
         config = types.GenerateContentConfig(
             system_instruction=instruction,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(
@@ -59,7 +74,7 @@ class GeminiEngine(AIEngine):
             try:
                 response = self.client.models.generate_content(
                     model=model,
-                    contents=user_message,
+                    contents=contents,
                     config=config,
                 )
             except errors.APIError as error:

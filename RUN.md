@@ -27,11 +27,36 @@ u faqat birinchi (asosiy) modelni belgilaydi.
 ## Ishga tushirish
 
 ```bash
-python main.py
+python bot.py
 ```
 
-Botda `/start` yuboring, avval final prompt qaysi AI uchun ekanini tanlang, keyin vazifani yozing va **ASSUME** yoki **CLARIFY** rejimini tugmalar bilan tanlang.
-Yangi suhbat uchun `🔄 New prompt`, `🏠 Home`, `/new` yoki `/new_prompt`dan foydalaning. `/help` qisqa qo‘llanmani ochadi. `/reference` esa joriy promptga matnli reference qo‘shadi.
+Botda `/start` yuboring. Bot 3 qadamda ishlaydi va har bir xabarda qaysi qadamda
+ekaningiz ko‘rsatiladi:
+
+1. **AI tanlash** — prompt qaysi AI uchun (ChatGPT, Claude…).
+2. **Vazifa** — bitta xabarda yoziladi. Kerak bo‘lsa, **avval** materiallar yuboriladi.
+3. **Rejim** — 🤖 taxmin qilsin yoki 🔍 aniqlashtirib (savollarni «⏭ Savollarsiz tayyorla» bilan o‘tkazib yuborish mumkin).
+
+Tayyor promptdan keyin: 🔄 Boshqa variant, 🎯 Boshqa AI uchun, ✨ Yangi prompt.
+Pastdagi doimiy menyu: ✨ Yangi prompt, 📎 Materiallar, ❓ Yordam, 📋 Buyruqlar.
+Bot AI ishlayotgan paytda chatda «typing…» ko‘rsatadi.
+
+### Materiallar (reference)
+
+Alohida rejimga kirish shart emas — istalgan qadamda shunchaki yuboriladi:
+
+- rasm/skrinshot va PDF — Gemini tahlil qilib, matnli tavsifga aylantiradi (izoh ham saqlanadi);
+- matnli fayllar (.txt, .md, .py, .json…) — to‘g‘ridan-to‘g‘ri o‘qiladi;
+- forward qilingan xabar — avtomatik material bo‘ladi;
+- oddiy matnni material sifatida qo‘shish: «📝 Matnli namuna qo‘shish» tugmasi yoki `/reference`.
+
+Rasm izohi vazifaning o‘zi bo‘lsa, «✅ Izohni vazifa sifatida ishlatish» tugmasi chiqadi.
+Bitta promptga ko‘pi bilan 10 ta material, har bir fayl 10 MB gacha.
+
+### Buyruqlar
+
+`/start`, `/new`, `/materials`, `/reference`, `/cancel`, `/help`, `/commands`.
+Bot ishga tushganda ular Telegram'dagi «/» menyusiga va bot tavsifiga avtomatik yoziladi.
 
 ## Test
 
@@ -47,7 +72,7 @@ python -m unittest discover -s tests -v
 - `architect/` — mavjud understander, decision engine, builder va reviewer logikasi.
 - `bot/` — aiogram router, xabarlar, klaviaturalar hamda FSM holatlari.
 - Target AI — final prompt manzili; u Gemini providerini almashtirmaydi.
-- Reference — hozircha faqat matnli va faqat joriy prompt uchun vaqtinchalik kontekst.
+- Reference — `bot/references.py`; rasm/PDF `PromptArchitect.analyze_reference` orqali matnga aylanadi, shuning uchun qolgan pipeline faqat matn bilan ishlaydi. Faqat joriy prompt uchun saqlanadi.
 - `MemoryStorage` — hozircha per-user FSM; keyinchalik storage adapter bilan persistent saqlash qo‘shilishi mumkin.
 
 Bot loglarni `logging` orqali yuritadi. Production oqimida terminaldan `input()` yoki `print()` ishlatilmaydi.
