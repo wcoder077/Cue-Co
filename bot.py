@@ -10,6 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 from dotenv import load_dotenv
 
+import feedback
 from ai import GeminiEngine
 from architect import PromptArchitect
 from bot import messages
@@ -21,6 +22,7 @@ COMMANDS = [
     BotCommand(command="materials", description="Materiallarni ko‘rish / tozalash"),
     BotCommand(command="reference", description="Matnli namuna qo‘shish"),
     BotCommand(command="cancel", description="Joriy jarayonni bekor qilish"),
+    BotCommand(command="taklif", description="Taklif yoki shikoyat yuborish"),
     BotCommand(command="help", description="Qo‘llanma"),
     BotCommand(command="commands", description="Barcha buyruqlar"),
 ]
@@ -44,6 +46,7 @@ async def main() -> None:
     bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher["architect"] = PromptArchitect(GeminiEngine())
+    dispatcher.include_router(feedback.router)  # birinchi bo‘lishi kerak
     dispatcher.include_router(router)
     logging.info("Prompter Telegram bot is starting")
     await bot.delete_webhook(drop_pending_updates=False)

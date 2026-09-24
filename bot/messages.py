@@ -48,6 +48,7 @@ COMMANDS = (
     "/materials — yuborilgan materiallarni ko‘rish va tozalash\n"
     "/reference — matnli namuna (reference) qo‘shish\n"
     "/cancel — joriy jarayonni bekor qilish\n"
+    "/taklif — taklif yoki shikoyat yuborish\n"
     "/help — batafsil qo‘llanma\n"
     "/commands — shu ro‘yxat\n\n"
     "Buyruq yozish shart emas: pastdagi menyu tugmalari ham xuddi shu ishni qiladi."
